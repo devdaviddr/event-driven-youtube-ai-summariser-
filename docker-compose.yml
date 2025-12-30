@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: youtube_summariser
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+
+  api:
+    build: ./services/api
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://app:app@db:5432/youtube_summariser
+    depends_on:
+      - db
+
+  yt-worker:
+    build: ./services/yt-worker
+    environment:
+      - DATABASE_URL=postgres://app:app@db:5432/youtube_summariser
+    depends_on:
+      - db
+
+  ai-worker:
+    build: ./services/ai-worker
+    environment:
+      - DATABASE_URL=postgres://app:app@db:5432/youtube_summariser
+      - LLM_API_URL=http://llm:8000/v1/chat/completions
+    depends_on:
+      - db
+      - llm
+
+  llm:
+    image: ollama/ollama:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  db_data:
+  ollama_data:

@@ -1,0 +1,21 @@
+{
+  "name": "@youtube-summariser/ai-worker",
+  "version": "1.0.0",
+  "description": "AI summariser worker",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@youtube-summariser/common": "file:../common",
+    "pg": "^8.11.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

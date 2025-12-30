@@ -1,0 +1,21 @@
+{
+  "name": "@youtube-summariser/api",
+  "version": "1.0.0",
+  "description": "HTTP API and UI for YouTube Summariser",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@youtube-summariser/common": "file:../common",
+    "hono": "^3.0.0",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

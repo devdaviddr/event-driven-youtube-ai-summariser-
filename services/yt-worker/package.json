@@ -1,0 +1,23 @@
+{
+  "name": "@youtube-summariser/yt-worker",
+  "version": "1.0.0",
+  "description": "YouTube RSS poller and transcript fetcher",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@youtube-summariser/common": "file:../common",
+    "dotenv": "^17.2.3",
+    "rss-parser": "^3.13.0",
+    "youtube-transcript": "^1.2.1",
+    "youtube-transcript-plus": "^1.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}
