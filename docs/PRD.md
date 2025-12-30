@@ -1,194 +1,138 @@
 # YouTube Summariser PRD
 
 **Product**: Local Docker-based event-driven YouTube channel summariser  
-**Version**: 1.0  
+**Version**: 1.1  
 **Date**: Dec 31, 2025  
-**Owner**: Senior Full-Stack Developer (Melbourne, AU)
+
+## Summary
+Local-first system that auto-discovers new YouTube videos on subscribed channels, fetches transcripts, and produces concise AI summaries. Runs in Docker, uses Node.js/TypeScript services, and keeps data private.
 
 ## Problem Statement
-
-Manual YouTube consumption is time-intensive for technical content. Developers need automated discovery, transcription, and AI summarization of subscribed channels while maintaining full privacy/control via local infrastructure.[1][2]
+Technical content on YouTube is time-consuming to triage. Builders need automated discovery, transcription, and summarization that runs locally (privacy, cost control) with minimal manual effort.
 
 ## Target Users
-
-- **Primary**: Senior developers building portfolio projects (like you)
-- **Secondary**: Tech enthusiasts, researchers, self-hosting hobbyists
-- **Key needs**: Local-first, Docker-native, event-driven, TypeScript/Node.js stack
+- **Primary**: Senior developers building portfolio/side projects, self-hosters
+- **Secondary**: Tech enthusiasts and researchers who prefer local control
+- **Needs**: Local-first, Docker-native, auditable pipeline, TypeScript/Node.js stack
 
 ## Goals & Success Metrics
-
 | Goal | Metric | Target |
 |------|--------|--------|
-| Process 10 channels | Videos summarized/week | 50+ |
-| <5min summary latency | Time from video publish to summary | 95% within target |
-| 100% local processing | External API dependency | None (RSS only) |
-| Zero-cost operation | Monthly hosting cost | $0 |
+| Cover initial set of channels | Channels processed | 10+ within week 1 |
+| Timely summaries | Publish-to-summary latency | 95% < 5 minutes |
+| Reliability | Successful pipeline runs | 99% of discovered videos |
+| Cost/privacy | External dependencies | RSS only; no paid APIs |
 
-## User Stories
+## Scope
+- **In**: RSS-based discovery, transcript fetch, summarization via local/compatible LLM, minimal UI for channel mgmt and viewing summaries.
+- **Out (for MVP)**: Mobile app, payments/monetization, multi-tenant auth, advanced analytics, real-time webhooks from YouTube (API-key based).
 
-### Core Workflow
-```
-As a developer, I want to subscribe to channels so I can auto-discover new videos
-As a developer, I want AI summaries so I can quickly triage content  
-As a developer, I want transcripts so I can search/reference full content
-```
-
-**Priority 1 (MVP)**:
-1. Subscribe/unsubscribe channels via web UI
-2. View latest summaries with bullet points
-3. Channel health status (last polled, videos found)
-
-**Priority 2**:
-1. Filter videos by date/channel/keywords
-2. Export summaries (Markdown/PDF)
-3. Custom LLM prompts per channel
-
-**Priority 3**:
-1. Audio download + Whisper transcription
-2. Multi-language translation
-3. Mobile-responsive UI
+## User Stories (MVP → Later)
+- As a user, I subscribe/unsubscribe channels to auto-discover new videos. *(MVP)*
+- As a user, I see summaries (abstract + bullets) and can open the transcript. *(MVP)*
+- As a user, I see channel health (last poll, last success, failures). *(MVP)*
+- As a user, I filter by channel/date/keyword. *(Post-MVP)*
+- As a user, I export summaries (Markdown/PDF). *(Post-MVP)*
+- As a user, I set custom prompts per channel. *(Post-MVP)*
 
 ## Functional Requirements
+**Channel Management**
+- Add channel by URL/ID; validate before storing.
+- List channels with stats: last poll time, videos discovered, failures.
+- Unsubscribe channel and optionally prune stored data.
 
-### 1. Channel Management
-- [ ] Add channel by URL/ID → auto-fetch RSS
-- [ ] List channels with stats (videos processed, last poll)
-- [ ] Delete channel + cleanup data
-- [ ] Validate channel before subscribe
+**Video Pipeline**
+- Poll RSS on interval (default 15m; configurable env).
+- Detect new videos (dedupe by video ID) and persist metadata.
+- Fetch captions (YouTube) with yt-dlp + Whisper fallback.
+- Store transcript and metadata; mark transcript source.
 
-### 2. Video Pipeline
-- [ ] Poll RSS every 15min (configurable)
-- [ ] Detect new videos (dedupe by video ID)
-- [ ] Fetch YouTube captions (primary) or yt-dlp fallback
-- [ ] Store metadata + transcript
+**AI Summarization**
+- Generate summary formats: abstract + bullets; timestamps optional.
+- Support Ollama and OpenAI-compatible endpoints (configurable URL/model).
+- Retry transient failures up to 3x; emit failure events with reason.
+- Store raw LLM payload, prompt/version for auditability.
 
-### 3. AI Summarization
-- [ ] Generate 3 formats: abstract, bullets, timestamps
-- [ ] Support Ollama + OpenAI-compatible endpoints
-- [ ] Retry failed summaries (3x max)
-- [ ] Store raw LLM response + metadata
-
-### 4. UI/Dashboard
-```
-┌─────────────┐ ┌──────────────────┐
-│ Channels    │ │ Latest Summaries │
-│ • Vercel    │ │ ┌──────────────┘ │
-│ • Fireship  │ │ │ Fireship #127   │
-│ + Add       │ │ │ 📺 React 19     │
-└─────────────┘ │   • New hooks... │
-                │   • Bundle size ↓ │
-                └──────────────────┘
-```
+**UI / Dashboard**
+- View channels and health indicators.
+- View latest videos with summary and link to transcript.
+- Simple filters: channel and date range (MVP minimal).
 
 ## Non-Functional Requirements
-
 | Category | Requirement |
 |----------|-------------|
-| **Performance** | Handle 50 channels, 10 videos/day, <5min summary latency |
-| **Storage** | 1GB transcripts + summaries for 1 year |
-| **Availability** | 99% uptime via Docker restart policies |
-| **Privacy** | 100% local processing, no external APIs beyond RSS |
-| **Scalability** | Add workers via docker-compose scale |
-| **Tech Stack** | Node.js 20, Postgres 16, TypeScript, Docker Compose |
+| Performance | 50 channels, 10 videos/day each; 95% summaries <5 min |
+| Reliability | Auto-restart via Docker; retries on fetch/summarize |
+| Storage | ~1 GB transcripts/summaries for 1 year retained |
+| Privacy | Local processing; only RSS/network fetches to YouTube and model endpoint |
+| Operability | Structured logs; health endpoints per service; basic metrics (poll counts, failures) |
+| Security | No secrets in code; env-based secrets; validate URLs to avoid SSRF |
 
-## Technical Architecture
-
+## Architecture (logical)
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Internet  │───▶│ YT-Worker   │───▶│ Postgres    │───▶│ AI-Worker  │───▶│ Local LLM │
-│ RSS Feeds   │    │ Node.js     │    │ Event Store │    │ Node.js    │    │ Ollama    │
-└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
-                         ▲                      ▲
-                         └──────────────────────┼──────────────┐
-                                                │              │
-                                          ┌─────────────┐ ┌─────────────┐
-                                          │   API/UI    │ │ React UI    │
-                                          │ Node.js     │ │ Port 3000   │
-                                          │ Hono        │ └─────────────┘
-                                          └─────────────┘
+Internet (RSS/API) → yt-worker → Postgres (events) → ai-worker → LLM
+                                             ↑
+                                       API/UI (3000)
 ```
 
-**Event Types**:
-- `ChannelSubscribed`
-- `VideoDiscovered` 
-- `TranscriptReady`
-- `SummaryCreated`
-- `ProcessingFailed`
+Event types: `ChannelSubscribed`, `VideoDiscovered`, `TranscriptReady`, `SummaryCreated`, `ProcessingFailed`.
 
-## Data Models
-
+## Data Models (simplified)
 ```sql
-channels: id, youtube_id, title, rss_url, created_at
-videos: id, channel_id, yt_id, title, published_at, duration
-transcripts: id, video_id, language, text, provider
-summaries: id, video_id, model, abstract, bullets, created_at
-events: id, aggregate_id, type, payload, occurred_at
+channels(id, youtube_id, title, rss_url, created_at)
+videos(id, channel_id, yt_id, title, published_at, duration)
+transcripts(id, video_id, language, text, provider)
+summaries(id, video_id, model, abstract, bullets, created_at)
+events(id, aggregate_id, type, payload, occurred_at)
 ```
 
-## API Endpoints
-
+## API Surface (MVP)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/channels` | Subscribe channel `{url, name}` |
+| POST | `/channels` | Subscribe `{url}` (auto-derive title if possible) |
 | GET | `/channels` | List channels + stats |
 | DELETE | `/channels/:id` | Unsubscribe |
-| GET | `/videos` | List videos + summaries `?channelId=&since=` |
-| GET | `/videos/:id` | Full video + transcript + summary |
+| GET | `/videos` | List with summaries; query: `channelId`, `since` |
+| GET | `/videos/:id` | Video detail with transcript + summary |
 
-## Implementation Phases
-
-### Phase 1: MVP (1 weekend)
-```
-Week 1:
-☐ docker-compose.yml + postgres
-☐ common event bus library
-☐ api service + basic endpoints
-☐ yt-worker RSS polling
-☐ Minimal Hono API
-Week 2:
-☐ ai-worker + ollama integration
-☐ Basic React UI
-☐ End-to-end testing
-```
-
-### Phase 2: Polish (1 week)
-```
-☐ React dashboard
-☐ Error handling + retries
-☐ Channel health monitoring
-☐ Configurable poll intervals
-```
+## Launch Criteria (MVP)
+- 5–10 test channels processed end-to-end.
+- UI shows summaries under 5 minutes from publish (95th percentile).
+- `docker compose up` works on a clean Mac with Docker Desktop.
+- Basic screenshots or short demo recording.
+- No secrets checked in; `.env.example` provided.
 
 ## Risks & Mitigations
-
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| YouTube RSS rate limits | High | Staggered polling, RSS-only |
-| LLM summarization quality | Medium | Multiple models, prompt tuning |
-| Transcript availability | High | Fallback to yt-dlp + Whisper |
-| Postgres event backlog | Low | Worker scaling, dead letter queue |
+| RSS rate limits or gaps | Medium | Staggered polling, backoff, small channel sets |
+| Caption unavailability | High | yt-dlp + Whisper fallback; mark source in UI |
+| LLM quality variance | Medium | Configurable model/prompt; allow retry/regenerate |
+| Event backlog growth | Low | Worker scaling; visibility via metrics/logs |
 
-## Dependencies
+## Open Questions
+- Do we need per-channel custom prompts in MVP?
+- Minimum acceptable transcript quality for publish?
+- Should summaries be regenerated when model/prompt changes?
 
-- **External**: YouTube RSS feeds (free), no API keys needed
-- **Local**: Docker, Node.js 20, Ollama (or Docker Model Runner)
-- **Optional**: yt-dlp for audio fallback, Whisper container
+## Phases
+**Phase 1 (MVP, ~1 weekend)**
+- docker-compose + Postgres
+- common event bus
+- api service endpoints
+- yt-worker RSS polling + caption fetch
+- ai-worker with Ollama/OpenAI-compatible client
+- Minimal UI (channels list, recent summaries)
 
-## Launch Criteria
+**Phase 2 (Polish, ~1 week)**
+- UI filters and health indicators
+- Error handling surfacing in UI
+- Configurable poll intervals per channel
+- Export summaries (Markdown)
 
-- [ ] 5 test channels processing end-to-end
-- [ ] UI shows summaries <5min after video publish
-- [ ] docker-compose up works on clean Mac/Docker
-- [ ] GitHub repo with README + screenshots
-- [ ] Portfolio-ready demo video
-
-## Future Enhancements
-
-1. **Real-time**: Postgres LISTEN/NOTIFY events
-2. **Advanced**: RAG over all transcripts
-3. **Mobile**: React Native companion app
-4. **Social**: Shareable summary links
-5. **Monetization**: Cloudflare Workers SaaS version
-
----
+**Future**
+- Real-time via LISTEN/NOTIFY
+- RAG over transcripts
+- Mobile-friendly UI / app
+- Shareable links and auth
 
